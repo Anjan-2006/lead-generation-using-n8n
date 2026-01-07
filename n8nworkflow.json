@@ -1,0 +1,498 @@
+{
+  "name": "lead generation",
+  "nodes": [
+    {
+      "parameters": {
+        "options": {
+          "reset": false
+        }
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        880,
+        640
+      ],
+      "id": "39781d01-9082-4ed4-935f-af40ad616be4",
+      "name": "Loop Over Items",
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.website }}",
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1248,
+        736
+      ],
+      "id": "da64a30b-099d-4042-824b-e85352addb13",
+      "name": "HTTP Request1",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "amount": 1
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        1488,
+        736
+      ],
+      "id": "c68df14a-8101-4310-8a7d-8613f632da97",
+      "name": "Wait",
+      "webhookId": "2f30fa5d-8159-4eaf-b3d4-a1fcd47ad446"
+    },
+    {
+      "parameters": {
+        "formTitle": "form",
+        "formDescription": "please enter some query",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "enter the query",
+              "placeholder": "enter some text",
+              "requiredField": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.2,
+      "position": [
+        -272,
+        656
+      ],
+      "id": "a5019f7e-5d4e-4271-9666-cd6e63697b69",
+      "name": "On form submission",
+      "webhookId": "6fbe53a7-b06b-4a6e-bd05-8d3f05cea6cd"
+    },
+    {
+      "parameters": {
+        "model": "openai/gpt-oss-120b",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGroq",
+      "typeVersion": 1,
+      "position": [
+        48,
+        928
+      ],
+      "id": "88af63c4-378d-4586-a1e7-c30760553c77",
+      "name": "Groq Chat Model",
+      "credentials": {
+        "groqApi": {
+          "id": "iFQJrij9PwB2MWkC",
+          "name": "internship apikey"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=You are a search query optimizer AI for Google Maps.  \n- Take a simple location-based query, e.g., \"hotels near Hyderabad\".  \n- Rewrite it as a clear, natural sentence that maximizes relevant results.  \n- Output a single, concise sentence only.  \n- Include business type, location, and relevant keywords.  \n- Do not include extra words, explanations, or formatting.  \n- Keep it short and precise to improve Google Maps listings.  \n- This is the query --> {{ $json[\"enter the query\"] }}\n",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2.2,
+      "position": [
+        0,
+        656
+      ],
+      "id": "29eb7709-8491-4cdd-9665-361c7848ee02",
+      "name": "Search Query Optimizer"
+    },
+    {
+      "parameters": {
+        "jsCode": "const allItems = $input.all();\nconst results = [];\n\nallItems.forEach(item => {\n  const html = item.json.data || \"\";\n  \n  if (!html) {\n    results.push({ name: \"\", phone: \"\", website: \"\", address: \"\", email: \"\", facebook: \"\", twitter: \"\", instagram: \"\", youtube: \"\", linkedin: \"\", blogspot: \"\" });\n    return;\n  }\n\n  // Extract href links from HTML\n  const hrefPattern = /href\\s*=\\s*['\"]([^'\"]+)['\"]/gi;\n  let hrefs = [];\n  let match;\n  while ((match = hrefPattern.exec(html)) !== null) {\n    hrefs.push(match[1]);\n  }\n  const combinedString = html + \"\\n\" + hrefs.join(\"\\n\");\n\n  // Regex Patterns\n  const emailPattern = /[\\w.\\-]+@[\\w.\\-]+\\.\\w+/gi;\n  const facebookPattern = /https?:\\/\\/(www\\.)?facebook\\.com\\/[A-Za-z0-9_.\\/-]+/gi;\n  const twitterPattern = /https?:\\/\\/(www\\.)?twitter\\.com\\/[A-Za-z0-9_.\\/-]+/gi;\n  const instagramPattern = /https?:\\/\\/(www\\.)?instagram\\.com\\/[A-Za-z0-9_.\\/-]+/gi;\n  const youtubePattern = /https?:\\/\\/(www\\.)?youtube\\.com\\/[A-Za-z0-9_.\\/-]+/gi;\n  const linkedinPattern = /https?:\\/\\/(www\\.)?linkedin\\.com\\/[A-Za-z0-9_.\\/-]+/gi;\n  const blogspotPattern = /https?:\\/\\/[A-Za-z0-9_.-]+\\.blogspot\\.[a-z.]+/gi;\n\n  // CORRECT WAY: Get business data from the Loop Over Items context\n  // The business data should be available in the item's context\n  const businessData = item.json._originalData || item.json.originalItem || {};\n  \n  // If businessData is empty, try to get from the parent context\n  let name = \"\", phone = \"\", website = \"\", address = \"\";\n  \n  if (Object.keys(businessData).length > 0) {\n    name = businessData.name || \"\";\n    phone = businessData.phone || \"\";\n    website = businessData.website || \"\";\n    \n    // Flatten address\n    if (businessData.address && typeof businessData.address === 'object') {\n      const addr = businessData.address;\n      const addressParts = [\n        addr.street,\n        addr.district, \n        addr.city,\n        addr.state,\n        addr.zipcode,\n        addr.country\n      ].filter(part => part && part !== \"null\" && part !== null);\n      address = addressParts.join(\", \");\n    } else {\n      address = businessData.address || \"\";\n    }\n  } else {\n    // Fallback: Try to get data from the loop context using the correct syntax\n    // This gets data from the \"Code\" node output that's being looped over\n    name = $('Code').item.json.name || \"\";\n    phone = $('Code').item.json.phone || \"\";\n    website = $('Code').item.json.website || \"\";\n    \n    if ($('Code').item.json.address && typeof $('Code').item.json.address === 'object') {\n      const addr = $('Code').item.json.address;\n      const addressParts = [\n        addr.street,\n        addr.district, \n        addr.city,\n        addr.state,\n        addr.zipcode,\n        addr.country\n      ].filter(part => part && part !== \"null\" && part !== null);\n      address = addressParts.join(\", \");\n    } else {\n      address = $('Code').item.json.address || \"\";\n    }\n  }\n\n  results.push({\n    name: name,\n    phone: phone,\n    website: website,\n    address: address,\n    email: (combinedString.match(emailPattern) || [])[0] || \"\",\n    facebook: (combinedString.match(facebookPattern) || [])[0] || \"\",\n    twitter: (combinedString.match(twitterPattern) || [])[0] || \"\",\n    instagram: (combinedString.match(instagramPattern) || [])[0] || \"\",\n    youtube: (combinedString.match(youtubePattern) || [])[0] || \"\",\n    linkedin: (combinedString.match(linkedinPattern) || [])[0] || \"\",\n    blogspot: (combinedString.match(blogspotPattern) || [])[0] || \"\"\n  });\n});\n\nreturn results;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1824,
+        736
+      ],
+      "id": "722f417e-6ba4-43a7-af11-ff10fee3b289",
+      "name": "email extractor",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "url": "https://local-business-data.p.rapidapi.com/search",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "query",
+              "value": "={{ $json.output }}"
+            },
+            {
+              "name": "limit",
+              "value": "40"
+            },
+            {
+              "name": "region",
+              "value": "in"
+            },
+            {
+              "name": "language",
+              "value": "en"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-rapidapi-host",
+              "value": "local-business-data.p.rapidapi.com"
+            },
+            {
+              "name": "x-rapidapi-key",
+              "value": "d3659d7c08msh0825f7e5942be36p1b1cd7jsn1a40cbcb526e"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        352,
+        656
+      ],
+      "id": "df844e92-20fe-4205-8ab8-90b56d9d0555",
+      "name": "HTTP Request2"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get the array of businesses from the input\nconst businesses = $input.first().json.data;\n\n// Function to extract only lead-relevant fields\nfunction extractLeadData(data) {\n  return {\n    name: data.name || null,\n    phone: data.phone || null,\n    website: data.website || null,\n    address: {\n      street: data.street_address || null,\n      district: data.district || null,\n      city: data.city || null,\n      state: data.state || null,\n      zipcode: data.zipcode || null,\n      country: data.country || null\n    },\n    category: data.category || null,\n    rating: data.rating || null,\n    order_link: data.order_link || null\n  };\n}\n\n// Map over all businesses and clean them up\nconst cleanedLeads = businesses.map(extractLeadData);\n\n// Return cleaned array back to n8n\nreturn cleanedLeads.map(lead => ({ json: lead }));\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        560,
+        656
+      ],
+      "id": "87213caf-cf36-45ec-861b-2eeab9ef3e6c",
+      "name": "Code"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.removeDuplicates",
+      "typeVersion": 2,
+      "position": [
+        1088,
+        336
+      ],
+      "id": "f30bb12e-a327-4906-bdd9-d4089e3fece4",
+      "name": "Remove Duplicates"
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1WguuzHXCZEidTLkL-icCX_IWleSHk0QIGdJmPpIqR40",
+          "mode": "list",
+          "cachedResultName": "Lead Generation spreadsheet",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1WguuzHXCZEidTLkL-icCX_IWleSHk0QIGdJmPpIqR40/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1WguuzHXCZEidTLkL-icCX_IWleSHk0QIGdJmPpIqR40/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "name": "={{ $json.name }}",
+            "phone": "={{ $json.phone }}",
+            "website": "={{ $json.website }}",
+            "email": "={{ $json.email }}",
+            "facebook": "={{ $json.facebook }}",
+            "address": "={{ $json.address }}",
+            "twitter": "={{ $json.twitter }}",
+            "instagram": "={{ $json.instagram }}",
+            "youtube": "={{ $json.youtube }}",
+            "linkedin": "={{ $json.linkedin }}",
+            "blogspot": "={{ $json.blogspot }}"
+          },
+          "matchingColumns": [
+            "name"
+          ],
+          "schema": [
+            {
+              "id": "name",
+              "displayName": "name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "phone",
+              "displayName": "phone",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "website",
+              "displayName": "website",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "email",
+              "displayName": "email",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "address",
+              "displayName": "address",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "facebook",
+              "displayName": "facebook",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "twitter",
+              "displayName": "twitter",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "instagram",
+              "displayName": "instagram",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "youtube",
+              "displayName": "youtube",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "linkedin",
+              "displayName": "linkedin",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "blogspot",
+              "displayName": "blogspot",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.6,
+      "position": [
+        1360,
+        336
+      ],
+      "id": "3835355d-0db9-4763-82b5-cbb7da80fd7c",
+      "name": "Append row in sheet",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "E3RAvy9h1BoYgBi7",
+          "name": "Google Sheets account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Loop Over Items": {
+      "main": [
+        [
+          {
+            "node": "Remove Duplicates",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "HTTP Request1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request1": {
+      "main": [
+        [
+          {
+            "node": "Wait",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait": {
+      "main": [
+        [
+          {
+            "node": "email extractor",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "On form submission": {
+      "main": [
+        [
+          {
+            "node": "Search Query Optimizer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Groq Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Search Query Optimizer",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Search Query Optimizer": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "email extractor": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request2": {
+      "main": [
+        [
+          {
+            "node": "Code",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Remove Duplicates": {
+      "main": [
+        [
+          {
+            "node": "Append row in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "27a2d789-9214-431a-937a-6a6ac5e56c27",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "24eacebe0317c0a5ec71d61debc59789f762f1c8f40dff782bf2f1925aa29ff4"
+  },
+  "id": "RS5iUoJBmTabXpXx",
+  "tags": []
+}
